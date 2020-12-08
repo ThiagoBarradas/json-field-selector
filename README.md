@@ -1,14 +1,14 @@
-[![Build Status](https://barradas.visualstudio.com/Contributions/_apis/build/status/NugetPackage/JsonMasking?branchName=develop)](https://barradas.visualstudio.com/Contributions/_build/latest?definitionId=1&branchName=develop)
+[![Build Status](https://barradas.visualstudio.com/Contributions/_apis/build/status/NugetPackage/JsonFieldSelector?branchName=develop)](https://barradas.visualstudio.com/Contributions/_build/latest?definitionId=23&branchName=develop)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=ThiagoBarradas_json-field-selector&metric=alert_status)](https://sonarcloud.io/dashboard?id=ThiagoBarradas_json-field-selector)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=ThiagoBarradas_json-field-selector&metric=coverage)](https://sonarcloud.io/dashboard?id=ThiagoBarradas_json-field-selector)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/JsonFieldSelector.svg)](https://www.nuget.org/packages/JsonFieldSelector/)
 [![NuGet Version](https://img.shields.io/nuget/v/JsonFieldSelector.svg)](https://www.nuget.org/packages/JsonFieldSelector/)
 
-# Json Masking 
+# Json Field Selector 
 
-Replace fields in json, replacing by something, don't care if property is in depth objects. Very useful to replace passwords, credit card number, etc.
+Select fields from a object, jtoken or a string (json), don't care if property is in depth objects or into an array. 
 
-This library matching insensitive values with field namespaces. You can use wildcard * to allow any char in pattern;
+Very useful to allows users to get a response with few fields by your choice, reducing you API response payload size, for example.
 
 # Sample
 
@@ -16,57 +16,72 @@ This library matching insensitive values with field namespaces. You can use wild
 
 var example = new 
 {
-	SomeValue = "Demo",
-	Password = "SomePasswordHere",
-	DepthObject = new 
+	SomeValue = "Some value 1",
+	SomeValue2 = "Some value 2",
+	SomeValue3 = new 
 	{
-		Password = "SomePasswordHere2",
-		Card = new 
+		SomeValue4 = "Some value 4",
+		SomeValue5 = new 
 		{
-			Number = "555500022223333"
+			SomeValue6 = "123123"
 		}
 	},
-	CreditCardNumber = "5555000011112222",
-	Card = new 
+	SomeValue6 = new object[] 
 	{
-		Number = "555500022223333"
+		new 
+		{
+			SomeValue7 = "Some value 7",
+			SomeValue8 = "Some value 8"
+		},
+		new 
+		{
+			SomeValue7 = "Some value 7",
+			SomeValue8 = "Some value 8"
+		}
 	}
 };
 
-var exampleAsString = JsonConvert.Serialize(example); // value must be a json string to masked
+var fields = new string[] { "SomeValue", "SomeValue3", "SomeValue6.SomeValue7" }; 
+var filteredObj = example.SelectFieldsFromObject<object>(fields); 
 
-// note that password is only replaced when is in root path
-var blacklist = new string[] { "password", "card.number", "*.card.number" "creditcardnumber" };
-var mask = "******";
+// OR
+// var fields = "SomeValue,SomeValue3,SomeValue6.SomeValue7"; 
+// var separator = ',';
+// var filteredObj = example.SelectFieldsFromObject<object>(fields, separator); 
 
-var maskedExampleAsString = exampleAsString.MaskFields(blacklist, mask);
+var json = JsonConvert.SerializeObject(filteredObj);
 
-Console.WriteLine(maskedExampleAsString);
+Console.WriteLine(json);
 
 ```
 
 Output
 ```json
 {
-	"SomeValue" : "Demo",
-	"Password" : "******",
-	"DepthObject" : {
-		"Password" : "SomePasswordHere2",
-		"Card" : {
-			"Number" : "******"
+	"SomeValue": "Some value 1",
+	"SomeValue3": 
+	{
+		"SomeValue4": "Some value 4",
+		"SomeValue5": 
+		{
+			"SomeValue6": "123123"
 		}
 	},
-	"CreditCardNumber" : "******",
-	"Card" : {
-		"Number" : "******"
-	}
-}
+	"SomeValue6" : [
+		{
+			"SomeValue7": "Some value 7"
+		},
+		{
+			"SomeValue7": "Some value 7"
+		}
+	]
+};
 ```
 
 ## Install via NuGet
 
 ```
-PM> Install-Package JsonMasking
+PM> Install-Package JsonFieldSelector
 ```
 
 ## How can I contribute?
@@ -76,7 +91,7 @@ Please, refer to [CONTRIBUTING](.github/CONTRIBUTING.md)
 Open a new Issue following our issue template [ISSUE_TEMPLATE](.github/ISSUE_TEMPLATE.md)
 
 ## Changelog
-See in [nuget version history](https://www.nuget.org/packages/JsonMasking)
+See in [nuget version history](https://www.nuget.org/packages/JsonFieldSelector)
 
 ## Did you like it? Please, make a donate :)
 
