@@ -78,14 +78,20 @@ namespace JsonFieldSelector
             var removeList = new List<JToken>();
             var stack = new Stack<JToken>();
             stack.Push(jtoken);
+
             do
             {
                 var container = stack.Pop() as JContainer;
-                if (container == null) continue;
+                
+                if (container == null)
+                {
+                    continue;
+                }
 
                 for (var i = 0; i < container.Count; i++)
                 {
                     var jtokenChild = container.ElementAt(i);
+
                     if (jtokenChild is JProperty prop)
                     {
                         var path = prop.GetPathWithoutArrayConnotation();
@@ -99,9 +105,11 @@ namespace JsonFieldSelector
                             removeList.Add(jtokenChild);
                         }
                     }
+
                     stack.Push(jtokenChild);
                 }
-            } while (stack.Any());
+            } 
+            while (stack.Any());
             
             for (var i = 0; i < removeList.Count; i++)
             {
@@ -180,11 +188,11 @@ namespace JsonFieldSelector
                    (jtoken.Type == JTokenType.Null);
         }
 
-        private static readonly List<JTokenType?> _objectTypes = new List<JTokenType?>(2) { JTokenType.Property, JTokenType.Object };
+        private static readonly List<JTokenType?> ObjectTypes = new List<JTokenType?>(2) { JTokenType.Property, JTokenType.Object };
 
         private static bool IsObject(this JToken jtoken)
         {
-            return _objectTypes.Contains(jtoken.Values().FirstOrDefault()?.Type);
+            return ObjectTypes.Contains(jtoken.Values().FirstOrDefault()?.Type);
         }
     }
 }
