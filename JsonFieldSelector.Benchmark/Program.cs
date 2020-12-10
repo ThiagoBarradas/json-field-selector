@@ -29,7 +29,6 @@ namespace JsonFieldSelector.Benchmark
         }
     }
 
-    [SimpleJob(launchCount: 300, warmupCount: 1000, targetCount: 3000)]
     public class JsonFieldSelectorBenchmark
     {
         private readonly SampleModel Data;
