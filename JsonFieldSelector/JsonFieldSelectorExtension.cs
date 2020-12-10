@@ -11,20 +11,17 @@ namespace JsonFieldSelector
     {
         public static string SelectFieldsFromString(this string json, string fields, char separator = ',')
         {
-            var fieldsArray = fields.SplitFields(separator);
-            return SelectFieldsFromString(json, fieldsArray);
+            return SelectFieldsFromString(json, fields.SplitFields(separator));
         }
 
         public static JToken SelectFieldsFromJToken(this JToken jtoken, string fields, char separator = ',')
         {
-            var fieldsArray = fields.SplitFields(separator);
-            return SelectFieldsFromJToken(jtoken, fieldsArray);
+            return SelectFieldsFromJToken(jtoken, fields.SplitFields(separator));
         }
 
         public static T SelectFieldsFromObject<T>(this T obj, string fields, char separator = ',')
         {
-            var fieldsArray = fields.SplitFields(separator);
-            return SelectFieldsFromObject(obj, fieldsArray);
+            return SelectFieldsFromObject(obj, fields.SplitFields(separator));
         }
 
         public static string SelectFieldsFromString(this string json, string[] fields)
@@ -39,11 +36,9 @@ namespace JsonFieldSelector
                 return json;
             }
 
-            var jtoken = (JObject)JsonConvert.DeserializeObject(json);
-
-            SelectFieldsFromJTokenCore(jtoken, fields);
-
-            return jtoken.RemoveEmptyChildren().ToString(Formatting.None);
+            return ((JObject)JsonConvert.DeserializeObject(json))
+                        .SelectFieldsFromJTokenCore(fields)
+                        .ToString(Formatting.None);
         }
 
         public static JToken SelectFieldsFromJToken(this JToken jtoken, string[] fields)
@@ -58,9 +53,7 @@ namespace JsonFieldSelector
                 return jtoken;
             }
 
-            SelectFieldsFromJTokenCore(jtoken, fields);
-
-            return jtoken.RemoveEmptyChildren();
+            return jtoken.SelectFieldsFromJTokenCore(fields);
         }
 
         public static T SelectFieldsFromObject<T>(this T obj, string[] fields) 
@@ -75,27 +68,26 @@ namespace JsonFieldSelector
                 return obj;
             }
 
-            var jtoken = JToken.FromObject(obj);
-
-            SelectFieldsFromJTokenCore(jtoken, fields);
-
-            return jtoken.RemoveEmptyChildren().ToObject<T>();
+            return JToken.FromObject(obj)
+                        .SelectFieldsFromJTokenCore(fields)
+                        .ToObject<T>();
         }
 
-        private static void SelectFieldsFromJTokenCore(this JToken jtoken, string[] fields)
+        private static JToken SelectFieldsFromJTokenCore(this JToken jtoken, string[] fields)
         {
-            JContainer container = jtoken as JContainer;
+            var container = jtoken as JContainer;
 
             if (container == null)
             {
-                return; // abort recursive
+                return jtoken;
             }
 
-            List<JToken> removeList = new List<JToken>();
+            var removeList = new List<JToken>();
 
-            foreach (JToken jtokenChildren in container.Children())
+            for (int i = container.Count() - 1; i >= 0; i--)
             {
-                if (jtokenChildren is JProperty prop)
+                var jtokenChild = container.ElementAt(i);
+                if (jtokenChild is JProperty prop)
                 {
                     var path = prop.Path.RemoveArrayConnotation();
 
@@ -105,20 +97,22 @@ namespace JsonFieldSelector
                                path.StartsWith(item + ".", StringComparison.InvariantCultureIgnoreCase);
                     });
 
-                    if (!matching && !IsObject(jtokenChildren))
+                    if (!matching && !jtokenChild.IsObject())
                     {
-                        removeList.Add(jtokenChildren);
+                        removeList.Add(jtokenChild);
                     }
                 }
 
                 // call recursive 
-                SelectFieldsFromJTokenCore(jtokenChildren, fields);
+                jtokenChild = jtokenChild.SelectFieldsFromJTokenCore(fields);
             }
 
             for (int i = removeList.Count() - 1; i >= 0; i--)
             {
                 removeList[i].Remove();
             }
+
+            return jtoken.RemoveEmptyChildren();
         }
 
         private static string[] SplitFields(this string fields, char separator)
@@ -131,60 +125,68 @@ namespace JsonFieldSelector
             return Regex.Replace(path, @"\[{1}[0-9]+\]{1}", "");
         }
 
-        private static List<JTokenType?> ObjectTypes = new List<JTokenType?> { JTokenType.Property, JTokenType.Object };
-
-        private static bool IsObject(JToken jtoken)
+        private static JToken RemoveEmptyChildren(this JToken jtoken)
         {
-            var first = jtoken.Values().FirstOrDefault();
-
-            return ObjectTypes.Contains(first?.Type);
+            switch(jtoken.Type)
+            {
+                case JTokenType.Object:
+                    return jtoken.RemoveEmptyChildrenFromObject();
+                case JTokenType.Array:
+                    return jtoken.RemoveEmptyChildrenFromArray();
+                default:
+                    return jtoken;
+            }
         }
 
-        private static JToken RemoveEmptyChildren(this JToken token)
+        private static JToken RemoveEmptyChildrenFromArray(this JToken jtoken)
         {
-            if (token.Type == JTokenType.Object)
+            JArray copy = new JArray();
+            foreach (JToken item in jtoken.Children())
             {
-                JObject copy = new JObject();
-                foreach (JProperty prop in token.Children<JProperty>())
+                var child = item;
+                if (child.HasValues)
                 {
-                    JToken child = prop.Value;
-                    if (child.HasValues)
-                    {
-                        child = child.RemoveEmptyChildren();
-                    }
-                    if (!child.IsEmpty())
-                    {
-                        copy.Add(prop.Name, child);
-                    }
+                    child = child.RemoveEmptyChildren();
                 }
-                return copy;
-            }
-            else if (token.Type == JTokenType.Array)
-            {
-                JArray copy = new JArray();
-                foreach (JToken item in token.Children())
+                if (!child.IsEmpty())
                 {
-                    JToken child = item;
-                    if (child.HasValues)
-                    {
-                        child = child.RemoveEmptyChildren();
-                    }
-                    if (!child.IsEmpty())
-                    {
-                        copy.Add(child);
-                    }
+                    copy.Add(child);
                 }
-                return copy;
             }
-            return token;
+            return copy;
         }
 
-        private static bool IsEmpty(this JToken token)
+        private static JToken RemoveEmptyChildrenFromObject(this JToken jtoken)
         {
-            return (token.Type == JTokenType.Array && !token.HasValues) ||
-                   (token.Type == JTokenType.Object && !token.HasValues) ||
-                   (token.Type == JTokenType.String && token.ToString() == String.Empty) ||
-                   (token.Type == JTokenType.Null);
+            var copy = new JObject();
+            foreach (JProperty prop in jtoken.Children<JProperty>())
+            {
+                var child = prop.Value;
+                if (child.HasValues)
+                {
+                    child = child.RemoveEmptyChildren();
+                }
+                if (!child.IsEmpty())
+                {
+                    copy.Add(prop.Name, child);
+                }
+            }
+            return copy;
+        }
+
+        private static bool IsEmpty(this JToken jtoken)
+        {
+            return (jtoken.Type == JTokenType.Array && !jtoken.HasValues) ||
+                   (jtoken.Type == JTokenType.Object && !jtoken.HasValues) ||
+                   (jtoken.Type == JTokenType.String && jtoken.ToString() == String.Empty) ||
+                   (jtoken.Type == JTokenType.Null);
+        }
+
+        private static readonly List<JTokenType?> ObjectTypes = new List<JTokenType?> { JTokenType.Property, JTokenType.Object };
+
+        private static bool IsObject(this JToken jtoken)
+        {
+            return ObjectTypes.Contains(jtoken.Values().FirstOrDefault()?.Type);
         }
     }
 }
