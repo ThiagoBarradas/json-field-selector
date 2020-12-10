@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace JsonFieldSelector.Benchmark
 {
@@ -37,6 +38,7 @@ namespace JsonFieldSelector.Benchmark
 
         public JsonFieldSelectorBenchmark()
         {
+            ThreadPool.SetMinThreads(250, 250);
             SampleModel.Initialize();
             this.Data = SampleModel.GetRandomInstance();
             this.Fields = SampleModel.GetRandomFields();

@@ -1,9 +1,11 @@
 ﻿using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace JsonFieldSelector
 {
@@ -75,43 +77,39 @@ namespace JsonFieldSelector
 
         private static JToken SelectFieldsFromJTokenCore(this JToken jtoken, string[] fields)
         {
-            var container = jtoken as JContainer;
-
-            if (container == null)
-            {
-                return jtoken;
-            }
-
             var removeList = new List<JToken>();
-
-            for (int i = container.Count() - 1; i >= 0; i--)
+            var stack = new Stack<JToken>();
+            stack.Push(jtoken);
+            do
             {
-                var jtokenChild = container.ElementAt(i);
-                if (jtokenChild is JProperty prop)
+                var container = stack.Pop() as JContainer;
+                if (container == null) continue;
+
+                for (var i = 0; i < container.Count; i++)
                 {
-                    var path = prop.Path.RemoveArrayConnotation();
-
-                    var matching = fields.Any(item =>
+                    var jtokenChild = container.ElementAt(i);
+                    if (jtokenChild is JProperty prop)
                     {
-                        return path.Equals(item, StringComparison.InvariantCultureIgnoreCase) ||
-                               path.StartsWith(item + ".", StringComparison.InvariantCultureIgnoreCase);
-                    });
+                        var path = prop.GetPathWithoutArrayConnotation();
 
-                    if (!matching && !jtokenChild.IsObject())
-                    {
-                        removeList.Add(jtokenChild);
+                        var matching = fields.Any(item =>
+                            path.Equals(item, StringComparison.InvariantCultureIgnoreCase) ||
+                            path.StartsWith($"{item}.", StringComparison.InvariantCultureIgnoreCase));
+
+                        if (!matching && !jtokenChild.IsObject())
+                        {
+                            removeList.Add(jtokenChild);
+                        }
                     }
+                    stack.Push(jtokenChild);
                 }
-
-                // call recursive 
-                jtokenChild = jtokenChild.SelectFieldsFromJTokenCore(fields);
-            }
-
-            for (int i = removeList.Count() - 1; i >= 0; i--)
+            } while (stack.Any());
+            
+            for (var i = 0; i < removeList.Count; i++)
             {
-                removeList[i].Remove();
+                removeList.ElementAt(i).Remove();
             }
-
+            
             return jtoken.RemoveEmptyChildren();
         }
 
@@ -120,9 +118,11 @@ namespace JsonFieldSelector
             return fields?.Split(separator) ?? new string[] { };
         }
 
-        private static string RemoveArrayConnotation(this string path)
+        private static string GetPathWithoutArrayConnotation(this JProperty property)
         {
-            return Regex.Replace(path, @"\[{1}[0-9]+\]{1}", "");
+            return property.Path.Contains("[")
+                ? Regex.Replace(property.Path, @"\[{1}\d+\]{1}", string.Empty)
+                : property.Path;
         }
 
         private static JToken RemoveEmptyChildren(this JToken jtoken)
@@ -182,11 +182,11 @@ namespace JsonFieldSelector
                    (jtoken.Type == JTokenType.Null);
         }
 
-        private static readonly List<JTokenType?> ObjectTypes = new List<JTokenType?> { JTokenType.Property, JTokenType.Object };
+        private static readonly List<JTokenType?> _objectTypes = new List<JTokenType?>(2) { JTokenType.Property, JTokenType.Object };
 
         private static bool IsObject(this JToken jtoken)
         {
-            return ObjectTypes.Contains(jtoken.Values().FirstOrDefault()?.Type);
+            return _objectTypes.Contains(jtoken.Values().FirstOrDefault()?.Type);
         }
     }
 }
