@@ -75,43 +75,47 @@ namespace JsonFieldSelector
 
         private static JToken SelectFieldsFromJTokenCore(this JToken jtoken, string[] fields)
         {
-            var container = jtoken as JContainer;
-
-            if (container == null)
-            {
-                return jtoken;
-            }
-
             var removeList = new List<JToken>();
+            var stack = new Stack<JToken>();
+            stack.Push(jtoken);
 
-            for (int i = container.Count() - 1; i >= 0; i--)
+            do
             {
-                var jtokenChild = container.ElementAt(i);
-                if (jtokenChild is JProperty prop)
+                var container = stack.Pop() as JContainer;
+                
+                if (container == null)
                 {
-                    var path = prop.Path.RemoveArrayConnotation();
-
-                    var matching = fields.Any(item =>
-                    {
-                        return path.Equals(item, StringComparison.InvariantCultureIgnoreCase) ||
-                               path.StartsWith(item + ".", StringComparison.InvariantCultureIgnoreCase);
-                    });
-
-                    if (!matching && !jtokenChild.IsObject())
-                    {
-                        removeList.Add(jtokenChild);
-                    }
+                    continue;
                 }
 
-                // call recursive 
-                jtokenChild = jtokenChild.SelectFieldsFromJTokenCore(fields);
-            }
+                for (var i = 0; i < container.Count; i++)
+                {
+                    var jtokenChild = container.ElementAt(i);
 
-            for (int i = removeList.Count() - 1; i >= 0; i--)
+                    if (jtokenChild is JProperty prop)
+                    {
+                        var path = prop.GetPathWithoutArrayConnotation();
+
+                        var matching = fields.Any(item =>
+                            path.Equals(item, StringComparison.InvariantCultureIgnoreCase) ||
+                            path.StartsWith($"{item}.", StringComparison.InvariantCultureIgnoreCase));
+
+                        if (!matching && !jtokenChild.IsObject())
+                        {
+                            removeList.Add(jtokenChild);
+                        }
+                    }
+
+                    stack.Push(jtokenChild);
+                }
+            } 
+            while (stack.Any());
+            
+            for (var i = 0; i < removeList.Count; i++)
             {
-                removeList[i].Remove();
+                removeList.ElementAt(i).Remove();
             }
-
+            
             return jtoken.RemoveEmptyChildren();
         }
 
@@ -120,9 +124,11 @@ namespace JsonFieldSelector
             return fields?.Split(separator) ?? new string[] { };
         }
 
-        private static string RemoveArrayConnotation(this string path)
+        private static string GetPathWithoutArrayConnotation(this JProperty property)
         {
-            return Regex.Replace(path, @"\[{1}[0-9]+\]{1}", "");
+            return property.Path.Contains("[")
+                ? Regex.Replace(property.Path, @"\[{1}\d+\]{1}", string.Empty)
+                : property.Path;
         }
 
         private static JToken RemoveEmptyChildren(this JToken jtoken)
@@ -182,7 +188,7 @@ namespace JsonFieldSelector
                    (jtoken.Type == JTokenType.Null);
         }
 
-        private static readonly List<JTokenType?> ObjectTypes = new List<JTokenType?> { JTokenType.Property, JTokenType.Object };
+        private static readonly List<JTokenType?> ObjectTypes = new List<JTokenType?>(2) { JTokenType.Property, JTokenType.Object };
 
         private static bool IsObject(this JToken jtoken)
         {
