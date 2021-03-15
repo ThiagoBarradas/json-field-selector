@@ -17,7 +17,7 @@
     <PackageLicenseUrl>https://github.com/ThiagoBarradas/json-field-selector/blob/master/LICENSE</PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/ThiagoBarradas/json-field-selector</PackageProjectUrl>
     <RepositoryUrl>https://github.com/ThiagoBarradas/json-field-selector</RepositoryUrl>
-    <PackageTags>newtonsoft json field fields selector jtoken jobject jproperty</PackageTags>
+    <PackageTags>newtonsoft json field fields selector jtoken jobject jproperty filter</PackageTags>
     <PackageIconUrl>https://i.imgur.com/52HlaJN.png</PackageIconUrl>
     <Description>Select fields from a object, jtoken or a string (json), don't care if property is in depth objects or into an array.</Description>
   </PropertyGroup>
